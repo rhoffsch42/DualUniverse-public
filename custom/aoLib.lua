@@ -15,8 +15,7 @@ function aolib.roundStr(num, numDecimalPlaces)
 end
 function aolib.getAltitude()
 	local alt = math.floor(core.getAltitude())
-	local text = "atmo "
-	if (alt == 0) then text = "space " end
+	local text = (alt == 0) and "space " or "atmo "
     return text .. alt .. "m"
 end
 function aolib.paragraphSized(str, size)
