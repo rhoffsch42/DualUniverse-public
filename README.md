@@ -1,5 +1,3 @@
-# DualUniverse-public
-
 # Industries managment
 A simple script to manage a rack of industries, only a programming board is required. It handles every commands and has an automatic mode.
 
