@@ -10,6 +10,5 @@ You can create hierarchical groups allowing to diplay locations depending on the
 ![locHUD](https://i.imgur.com/1dGe5EG.png)
 
 # Mining pet
-WIP
 A basic pet following you. If you dig and mine, it will stay on top of you at the surface to have the closest distance for the linked container.
-It will have a HUD to facilitate mining.
+WIP. It will have a HUD to facilitate mining.
