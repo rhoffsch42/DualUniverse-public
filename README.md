@@ -12,3 +12,6 @@ You can create hierarchical groups allowing to diplay locations depending on the
 # Mining pet
 A basic pet following you. If you dig and mine, it will stay on top of you at the surface to have the closest distance for the linked container.
 WIP. It will have a HUD to facilitate mining.
+
+# SVG Helper
+A simple debug script to print lua tables
