@@ -1,7 +1,13 @@
+# Cam
+A camera object for 3d projection
+
 # Industries managment
 A simple script to manage a rack of industries, only a programming board is required. It handles every commands and has an automatic mode.
 
 ![indus](https://i.imgur.com/c2tez4w.png)
+
+# Location
+Locations/waypoints/bookmarks manager. Organize your bookmarks as if you had folders.
 
 # Locations HUD
 A customizable HUD allowing to display different locations on screen like planets, moons, bases, or whatever you want.
@@ -14,4 +20,5 @@ A basic pet following you. If you dig and mine, it will stay on top of you at th
 WIP. It will have a HUD to facilitate mining.
 
 # SVG Helper
-A simple debug script to print lua tables
+A simple object for svg content.
+Has a debug function to print lua tables.

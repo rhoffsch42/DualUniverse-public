@@ -66,7 +66,7 @@ end
 
 function cam:projectPoint(point, inplace)
     inplace = inplace or false
-    local campoint = point - self.transform.pos -- new var to not override the adress contained in the variable point
+    local campoint = point - self.transform.pos
     local coo = vec3(
         self.scale * campoint:dot(self.transform.right),
         self.scale * -campoint:dot(self.transform.up), --negative because y is inverted
