@@ -30,11 +30,12 @@ cam.perspective = true -- orthogonal if false
 
 --[[
 cam settings
-|\
+
+            |\
 screenLen/2 |  \
-|    \
-|______\
-z    ^cam
+            |    \
+            |______\
+               z    ^cam
 
 z = screen distance = 1
 tan(fov/2) = (screenLen/2) / z
