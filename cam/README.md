@@ -45,8 +45,8 @@ function	drawPoints(points)
     local svgcode = ""
     for k, v in pairs(points) do
         svgcode = svgcode .. string.format([[
-            <circle cx="%f" cy="%f" r="5" stroke="white" fill="black" />
-            <text x="%f" y="%f" fill="black" stroke="white" stroke-width="2">%s</text> ]],
+            <circle cx="%f" cy="%f" r="5" stroke="black" fill="orange" />
+            <text x="%f" y="%f" font-size="18" font-weight="bold" fill="orange" stroke="black" stroke-width="3">%s</text> ]],
             v.x, v.y,
             v.x+10, v.y, k)
     end
