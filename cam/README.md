@@ -1,6 +1,6 @@
 # example
 
-![Example](https://i.imgur.com/eHNoMZu.png)
+![Example](https://i.imgur.com/YLz5350.png)
 
 ```lua
 cam = require "cam"
@@ -19,11 +19,11 @@ local district9 = vec3(5983, 110488, -65343)
 local district10 = vec3(-5349, 101504, -52833)
 
 -- the cam uses vec3
+cam.fov = 110 -- the same as you have in the game settings
+cam:updateScreen()
 cam.transform.pos = vec3(core.getConstructWorldPos())
 cam.transform.target = vec3(arkship)
 cam.transform.vertical = -vec3(core.getWorldVertical())
-cam.fov = 110 -- the same as you have in the game settings
-cam:updateScreen()
 cam:updateVectors()
 
 --projected on screen
