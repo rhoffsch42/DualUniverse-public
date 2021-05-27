@@ -1,3 +1,12 @@
+# Basic Travel Infos
+Example:
+```
+Travel time to Alioth (10su) :
+At current speed: 03h45m05s
+At max speed: 03m41s
+Warp cells for 55t: 1 
+```
+
 # Cam
 A camera object for 3d projection
 
