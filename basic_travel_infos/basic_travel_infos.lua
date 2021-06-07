@@ -1,4 +1,4 @@
--- BTI v1.0
+-- BTI v1.1
 local function dhms(time, displayAll, sep)
     displayAll = displayAll or false
     sep = sep or {"d","h","m","s"}
@@ -55,9 +55,10 @@ function requireBasicTravelInfos()
     bti.target = 1
 
 
-    function	bti.travelInfos(target, shipPos, speed, mass, fontsize)
+    function	bti.travelInfos(target, shipPos, speed, mass, pos, fontsize)
+        fontsize = fontsize or 18
+        pos = pos and vec3(pos) or vec3(10, 30, 0)
         local name = target.name or "?"
-        local pos = vec3(10, 30, 0)
         local dist = (shipPos - target):len()
         local su = 200000
         local t = 1000
@@ -96,13 +97,13 @@ function requireBasicTravelInfos()
         return svgcode
     end
     
-    function	bti:getSvgcode()
+    function	bti:getSvgcode(pos)
         local speed = vec3(core.getWorldVelocity()):len()
         local selectedTarget = self.waypoints[self.target]
         local shipPos = vec3(core.getConstructWorldPos())
         local mass = core.getConstructMass()
 
-        return self.travelInfos(selectedTarget, shipPos, speed, mass, 18)
+        return self.travelInfos(selectedTarget, shipPos, speed, mass, pos, 18)
     end
     
     return bti
