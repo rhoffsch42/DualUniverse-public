@@ -9,30 +9,17 @@
 
     --[[
 
-
-
-CHECK DIMENSIA INSTALLATION: can inject json, or need to install manually?
-
 toggle: brake if <2su of target (BTI)
 demarrage instant hover/booster
 
 basic interface:
-    fuel tank : time to depletion)
-	warp drive warp cells in container: need to put a spcial container for that and do same as fuel tanks
+    fuel tank : time to depletion
 	trottle -100 +100 % (+speed km/h  m/s)
-	isbraking + brake with value
-	floor level (telemeter)
-	hover/booster floor level 
-
-    flags: braking, autobrake, handbrake, lights, gears
-
-clignotage des square lights
+	hover/booster alt stab (api not working?)
 
 settings:
 	disable vbooster on atmo
-
-
-    --]]
+--]]
 
 function    requireMinimalPilotingConfig(atmotanks, spacetanks)
     local mpc = {
@@ -100,32 +87,88 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
 
     function    mpc:updatePilotingInfos()
         self.piloting.throttle = unit.getThrottle() --unit.getAxisCommandValue(0) * 100, -- Longitudinal = 0, lateral = 1, vertical = 2    //  unit.getThrottle()
-        self.piloting.surfaceStabilization = unit.getSurfaceEngineAltitudeStabilization() -- meter
+        self.piloting.surfaceStabilization = unit.computeGroundEngineAltitudeStabilizationCapabilities()[1]-- vec2 --getSurfaceEngineAltitudeStabilization() -- meter
         self.piloting.telemeterRange = telemeter and telemeter.getDistance() or nil
         self.piloting.gears = unit.isAnyLandingGearExtended()
         --self.piloting.brakingPower = ??, -- done in flush
     end
     function    mpc:getSvgPilotingInfos(pos)
-        pos = pos and vec3(pos) or vec3(10, 500, 0)
+        pos = pos and vec3(pos) or vec3(1675, 525, 0)
         local fontsize = 14
         local colorOn = "#33cc33"
-        local colorOff = "darkgray"
+        local color = "#99ccff"
         local svgcode = ""
-        svgcode = svgcode .. svg.toSVG({piloting=self.piloting}, pos.x, pos.y)
-        svgcode = svgcode .. svgTextBG("Braking", pos + vec3(0,-20,0), fontsize, (self.piloting.brakingPower > 0) and colorOn or colorOff)
-        svgcode = svgcode .. svgTextBG("HandBrake", pos + vec3(70,-20,0), fontsize, (self.handbrake) and colorOn or colorOff)
-        svgcode = svgcode .. svgTextBG("AutoBrake", pos + vec3(157,-20,0), fontsize, (self.autobrake) and colorOn or colorOff)
-        svgcode = svgcode .. svgTextBG("Lights", pos + vec3(0,-40,0), fontsize, (self.lights) and colorOn or colorOff)
-        svgcode = svgcode .. svgTextBG("Gears", pos + vec3(0,-60,0), fontsize, (self.piloting.gears == 1) and colorOn or colorOff)
+        svgcode = svgcode .. svgTextBG("Braking", pos + vec3(0,-20,0), fontsize, (self.piloting.brakingPower > 0) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("HandBrake", pos + vec3(70,-20,0), fontsize, (self.handbrake) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("AutoBrake", pos + vec3(157,-20,0), fontsize, (self.autobrake) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("Lights", pos + vec3(157,-40,0), fontsize, (self.lights) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("Gears", pos + vec3(157,-60,0), fontsize, (self.piloting.gears == 1) and colorOn or color)
+
+        --brake calc
+        local brakeData = calcBrakeTimeAndDistance(core.getConstructMass(), vec3(core.getWorldVelocity()):len(), self.brakePower)
+        local text1 = math.ceil(brakeData.distance) / 1000 .. "km "
+        local text2 = " |  " .. dhms(brakeData.time)
+        svgcode = svgcode .. string.format([[
+            <g style="fill:%s;font-size:12;font-weight:bold;">
+                <text x="%d" y="%d" text-anchor="middle">Brake distance and time :</text>
+                <text x="%d" y="%d" text-anchor="end">%s</text>
+                <text x="%d" y="%d" >%s</text>
+            </g>]],
+            color,
+            pos.x+120, pos.y+10,
+            pos.x+120, pos.y+25, text1,
+            pos.x+123, pos.y+25, text2)
+
+        --floor dist and stabilization height
+        local maxRange = 100 -- telemeter 
+        local min = vec3(pos) + vec3(-15, 330, 0)
+        local direction = vec3(0, -300, 0)
+        local max = min + direction
+
+        local r = 0
+        local floor = 0
+        local floortext = ""
+        if self.piloting.telemeterRange then
+            r = math.ceil(self.piloting.telemeterRange)
+            r = r == -1 and 101 or r
+            floor = min + direction * (r / maxRange)
+            floor.x = math.ceil(floor.x)
+            floor.y = math.ceil(floor.y)
+            floortext = r == 101 and "100+" or r
+        else
+            floor = vec3(min)
+            floortext = "?"
+        end
+
+        local stab = min + direction * (self.piloting.surfaceStabilization / maxRange)
+        stab.x = math.ceil(stab.x)
+        stab.y = math.ceil(stab.y)
+        svgcode = svgcode .. string.format([[<line x1="%d" y1="%d" x2="%d" y2="%d" style="stroke:%s;stroke-width:2" />
+            <g style="fill:%s;font-size:12;font-weight:bold;">
+                <text x="%d" y="%d" text-anchor="end">%s</text>
+                <text x="%d" y="%d">%s</text>
+            </g>]],
+            min.x, min.y, max.x, max.y, color,
+            color, floor.x, floor.y, floortext .. " ►",
+            stab.x, stab.y, ("◄ " .. math.ceil(self.piloting.surfaceStabilization)))
+
+            --[[
+        svgcode = svgcode .. svg.toSVG({
+            core.getMaxKinematicsParametersAlongAxis(),
+            unit.computeGroundEngineAltitudeStabilizationCapabilities(),
+        }, 20, 200)
+            --]]
         return svgcode
     end
 
     function    mpc:automaticFeatures()
         --gears
-        if (self.piloting.telemeterRange > 0) and (self.piloting.telemeterRange <= self.gearsThreshold) then
-            if self.piloting.gears == 0 then unit.extendLandingGears() end
-        else
-            if self.piloting.gears == 1 then unit.retractLandingGears() end
+        if self.piloting.telemeterRange then
+            if (self.piloting.telemeterRange > 0) and (self.piloting.telemeterRange <= self.gearsThreshold) then
+                if self.piloting.gears == 0 then unit.extendLandingGears() end
+            else
+                if self.piloting.gears == 1 then unit.retractLandingGears() end
+            end
         end
         -- on brake: red backlight
     end
@@ -141,7 +184,7 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
             table.insert(spacelvls, t.percent)
         end
         svgcode = svgcode .. self.bti:getSvgcode()
-        svgcode = svgcode .. self:getSvgFuelGauge(vec3(1700, 1030, 0), true) -- true = right2left
+        svgcode = svgcode .. self:getSvgFuelGauge(vec3(1800, 1030, 0), true) -- true = right2left
         svgcode = svgcode .. self:getSvgPilotingInfos()
 
   --  svg.body = svg.body .. svg.toSVG({displayedMenu}, 900, 30, {maxDepth=1})
@@ -159,108 +202,12 @@ end
             * telemeter : telemeter 
             * lightSwitch : manual switch (with relay(s) to all lights)
     
-        unit
-            tick(hud)
-                mpc:updateTanksPercent()
-                mpc:updatePilotingInfos()
-
-                svg.body = mpc:getSvgcode()
-                system.setScreen(svg.dump())
-            start()
-                ---------
-                unit.setTimer("draw", 0.01)
-                unit.setTimer("util", 0.01)
-                local atmotanks = {atmofueltank_1,atmofueltank_2,atmofueltank_3,atmofueltank_4,atmofueltank_5,atmofueltank_6,atmofueltank_7,atmofueltank_8,atmofueltank_9,atmofueltank_10,atmofueltank_11,atmofueltank_12,atmofueltank_13,atmofueltank_14,atmofueltank_15,atmofueltank_16,atmofueltank_17,atmofueltank_18,atmofueltank_19,atmofueltank_20,}
-                local spacetanks = {spacefueltank_1,spacefueltank_2,spacefueltank_3,spacefueltank_4,spacefueltank_5,spacefueltank_6,spacefueltank_7,spacefueltank_8,spacefueltank_9,spacefueltank_10,spacefueltank_11,spacefueltank_12,spacefueltank_13,spacefueltank_14,spacefueltank_15,spacefueltank_16,spacefueltank_17,spacefueltank_18,spacefueltank_19,spacefueltank_20,}
-                --talents levels
-                local ContainerOptimization = 5 --export
-                local FuelTankOptimization = 5 --export
-                local AtmosphericFuelTankHandling = 5 --export
-                local SpaceFuelTankHandling = 4 --export
-
-                svg = requireSvgHelper() -- or require("svghelper")
-                svg.style = svg.style .. [[
-                .fuel { fill: none; }
-                .nitron { stroke: #3399ff; }
-                .kergon { stroke: #ffff4d; }
-                .gauge { stroke-width: 10; }
-                .gauge-bg { stroke: #bbbbbb; stroke-width: 6; }
-                .val { font-size: 20px; text-anchor: middle; fill: #bbbbbb; stroke: #bbbbbb; }
-                ]]
-                mpc = requireMinimalPilotingConfig(atmotanks, spacetanks)
-                mpc:initTanksData(ContainerOptimization, FuelTankOptimization, AtmosphericFuelTankHandling, SpaceFuelTankHandling)
-
-                system.showScreen(1)
-                unit.setTimer("hud", 0.15)
-                lightSwitch.activate()
-            stop()
-                lightSwitch.deactivate()
         system
-            actionStart(option1)
-                mpc.handbrake = not mpc.handbrake
-            actionStart(option2)
-                mpc.brake = not mpc.brake
-            actionStart(option3)
-                lightSwitch.toggle()
-            actionStart(lalt)
-                mpc.bti.target = (mpc.bti.target - 1 + mpc.bti.maxWaypoints + 1) % mpc.bti.maxWaypoints + 1
-            actionStart(lshift)
-                mpc.bti.target = (mpcbti.target - 1 + mpc.bti.maxWaypoints - 1) % mpc.bti.maxWaypoints + 1
-            flush() : replace Brake part by:
-                -- Brakes
-                --local brakeAcceleration = -finalBrakeInput * (brakeSpeedFactor * constructVelocity + brakeFlatFactor * constructVelocityDir)
-                --Nav:setEngineForceCommand('brake', brakeAcceleration)
-                if mpc.handbrake then
-                    unit.setEngineThrust("brake", math.maxinteger)
-                else
-                    local brakeAcceleration = (brakeSpeedFactor * constructVelocity + brakeFlatFactor * constructVelocityDir)
-                    brakeAcceleration = mpc.brake and (-brakeAcceleration) or (-finalBrakeInput * brakeAcceleration)
-                    Nav:setEngineForceCommand('brake', brakeAcceleration)
-                end
-
+            {...}
         unit
-            tick(util)
-                function	getTankMaxVolume(tank, talentlvl)
-                    local defaultTanksMass = {35.03, 182.67, 988.67, 5480} -- xs, s, m, l
-                    local defaultTanksVolumes= {100, 400, 1600, 12800} -- xs, s, m, l
-                    local mass = tank.getSelfMass()
-                    local vol = 0
-                    for i, m in pairs(defaultTanksMass) do
-                        if mass == m then
-                            vol = defaultTanksVolumes[i] * (1 + 0.20*talentlvl) -- 20% bonus volume / lvl
-                            break
-                        end
-                    end
-                    return math.ceil(vol)
-                end
-
-                function	getTankPercent(tank, volume, fuelMassL)
-                    local mm = volume * fuelMassL
-                    local m = tank.getItemsMass()
-                    return math.ceil(m / mm * 100)
-                end
-            tick(draw)
-                function    svgCircularGauge(percent, pos, r, class, bgclass)
-                    pos = vec3(pos)
-                    class = class or "gauge"
-                    bgclass = bgclass or "gauge-bg"
-                    local size = r*2
-                    local da = ""
-                    if percent ~= 100 then
-                        local d = math.ceil(2 * math.pi * r)+1
-                        local p = math.ceil(d * percent / 100)
-                        da = string.format([[ stroke-dasharray="%d %d"]], p, d)
-                    end
-                    return string.format([[
-                        <circle class="%s" cx="%d" cy="%d" r="%d"/>
-                        <rect class="%s" x="%d" y="%d" width="%d" height="%d" rx="%d" ry="%d"%s/>]],
-                        bgclass, pos.x, pos.y, r,
-                        class, pos.x-r, pos.y-r, size, size, r, r, da)
-                end
-                --<circle class="%s" cx="%d" cy="%d" r="%d" stroke-dasharray="5 10" />
-
-                unit.stopTimer("draw")
+            {...}
         library
+            {...}
             svghelper
                 {...}
             BTI

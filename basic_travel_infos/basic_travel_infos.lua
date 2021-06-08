@@ -72,7 +72,7 @@ function requireBasicTravelInfos()
         fontsize = fontsize or 20
         local x = pos.x
         local y = pos.y
-        local svgcode = string.format([[<g fill="%s" font-size="%dpx">]], "darkgray", fontsize)
+        local svgcode = string.format([[<g fill="%s" font-size="%dpx">]], "#99ccff", fontsize)
         --title
         svgcode = svgcode .. string.format([[
             <text x="%d" y="%d" font-weight="bold" text-decoration="underline">Travel time to %s (%dsu) :</text>]],
