@@ -1,40 +1,43 @@
--- MPC v1.0
 --[[
+    MPC v1.0
 
-    alt : settings (vcursor)
-    option1 : toggle handbrake
-    option2 : toggle brakes
-    option3 : toggle lights
-    settings: toggle space brake safety (dep: BTI)
+    links (element : slot name) (* are optional):
+        - core : core
+        * telemeter : telemeter 
+        * lightSwitch : manual switch (with relay(s) to all lights)
+        * vboosterSwitch : manual switch (with relay(s) to all fuel intakes)
+    
+    commands:
+        option1 : toggle handbrake
+        option2 : toggle brakes
+        option3 : toggle lights
+        option4 : toggle vboosters
 
-    --[[
+    todo:
+        basic interface:
+            fuel tank : time to depletion
+        settings: toggle space brake safety if <2su (dep: BTI)
 
-toggle: brake if <2su of target (BTI)
-demarrage instant hover/booster
-
-basic interface:
-    fuel tank : time to depletion
-	trottle -100 +100 % (+speed km/h  m/s)
-	hover/booster alt stab (api not working?)
-
-settings:
-	disable vbooster on atmo
 --]]
 
 function    requireMinimalPilotingConfig(atmotanks, spacetanks)
     local mpc = {
-        bti = requireBasicTravelInfos(),
-        piloting = {},
-        handbrake = false,
-        autobrake = false,
-        brakeAtRange = false, -- default 2su
-        lights = false,
-        vBoosters = true,
+        piloting = {
+            handbrake = false,
+            autobrake = false,
+            vBoosters = true,
+            brakeAtRange = false, -- default 2su
+            lights = false,
+            gears = false,
+            telemeterRange = 0,
+            surfaceStabilization = 4, --m
+        },
         atmotanks = atmotanks,
         spacetanks = spacetanks,
         nitronMass = 4,
         kergonMass = 6,
         gearsThreshold = 40,
+        uiPos = vec3(1675, 525, 0),
     }
 
     function	mpc:initTanksData(
@@ -86,23 +89,28 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
     end
 
     function    mpc:updatePilotingInfos()
-        self.piloting.throttle = unit.getThrottle() --unit.getAxisCommandValue(0) * 100, -- Longitudinal = 0, lateral = 1, vertical = 2    //  unit.getThrottle()
-        self.piloting.surfaceStabilization = unit.computeGroundEngineAltitudeStabilizationCapabilities()[1]-- vec2 --getSurfaceEngineAltitudeStabilization() -- meter
+        --self.piloting.throttle = unit.getThrottle() --unit.getAxisCommandValue(0) * 100, -- Longitudinal = 0, lateral = 1, vertical = 2    //  unit.getThrottle()
+        self.piloting.surfaceStabilization = unit.getSurfaceEngineAltitudeStabilization() -- meter
         self.piloting.telemeterRange = telemeter and telemeter.getDistance() or nil
         self.piloting.gears = unit.isAnyLandingGearExtended()
-        --self.piloting.brakingPower = ??, -- done in flush
+        --self.piloting.isBraking = ??, -- done in flush
     end
     function    mpc:getSvgPilotingInfos(pos)
-        pos = pos and vec3(pos) or vec3(1675, 525, 0)
+        pos = pos and vec3(pos) or vec3(self.uiPos)
         local fontsize = 14
         local colorOn = "#33cc33"
         local color = "#99ccff"
         local svgcode = ""
-        svgcode = svgcode .. svgTextBG("Braking", pos + vec3(0,-20,0), fontsize, (self.piloting.brakingPower > 0) and colorOn or color)
-        svgcode = svgcode .. svgTextBG("HandBrake", pos + vec3(70,-20,0), fontsize, (self.handbrake) and colorOn or color)
-        svgcode = svgcode .. svgTextBG("AutoBrake", pos + vec3(157,-20,0), fontsize, (self.autobrake) and colorOn or color)
-        svgcode = svgcode .. svgTextBG("Lights", pos + vec3(157,-40,0), fontsize, (self.lights) and colorOn or color)
-        svgcode = svgcode .. svgTextBG("Gears", pos + vec3(157,-60,0), fontsize, (self.piloting.gears == 1) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("Braking", pos + vec3(0,-20,0), fontsize, (self.piloting.isBraking) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("HandBrake", pos + vec3(70,-20,0), fontsize, (self.piloting.handbrake) and colorOn or color)
+        svgcode = svgcode .. svgTextBG("AutoBrake", pos + vec3(157,-20,0), fontsize, (self.piloting.autobrake) and colorOn or color)
+        if lightSwitch then
+            svgcode = svgcode .. svgTextBG("Lights", pos + vec3(180,-40,0), fontsize, (self.piloting.lights) and colorOn or color)
+        end
+        if vboosterSwitch then
+            svgcode = svgcode .. svgTextBG("vBoosters", pos + vec3(94,-40,0), fontsize, (self.piloting.vboosters) and colorOn or color)
+        end
+        svgcode = svgcode .. svgTextBG("Gears", pos + vec3(41,-40,0), fontsize, (self.piloting.gears == 1) and colorOn or color)
 
         --brake calc
         local brakeData = calcBrakeTimeAndDistance(core.getConstructMass(), vec3(core.getWorldVelocity()):len(), self.brakePower)
@@ -191,26 +199,5 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
         return svgcode
     end
 
-
-
     return mpc
 end
-
---[=[
-    Manual install on the seat controller after reloading a default configuration for flying contruct:
-        links (element : slot name) (* are optional):
-            * telemeter : telemeter 
-            * lightSwitch : manual switch (with relay(s) to all lights)
-    
-        system
-            {...}
-        unit
-            {...}
-        library
-            {...}
-            svghelper
-                {...}
-            BTI
-                {...}
-
---]=]
