@@ -1,5 +1,5 @@
 --[[
-    MPC v1.0
+    MPC v1.3
 
     links (element : slot name) (* are optional):
         - core : core
@@ -20,6 +20,52 @@
 
 --]]
 
+local function dhms(time, displayAll, sep)
+    --ex: 01d08h12m05s
+    displayAll = displayAll or false
+    sep = sep or {"d","h","m","s"}
+    local dhmsValues = {86400, 3600, 60, 1}
+    local res = ""
+    for i, v in ipairs(dhmsValues) do
+        local r = math.floor(time / dhmsValues[i])
+        time = time % dhmsValues[i]
+        if displayAll or r ~= 0 then
+            res = res .. string.format([[%.2d%s]], r, sep[i])
+        end
+    end
+    return res ~= "" and res or ("0"..sep[4])
+end
+local function    sukm(distance, displayAll, sep)
+    --ex: 5su045km458m
+    displayAll = displayAll or false
+    sep = sep or {"su","km","m"}
+    local sukmValues = {200000, 1000, 1}
+    local res = ""
+    for i, v in ipairs(sukmValues) do
+        local r = math.floor(distance / sukmValues[i])
+        distance = distance % sukmValues[i]
+        if displayAll or r ~= 0 then
+            res = res .. string.format([[%.3d%s]], r, sep[i])
+        end
+    end
+    return res ~= "" and res or ("0"..sep[3])
+end
+local function roundStr(num, numDecimalPlaces)
+    return string.format("%." .. (numDecimalPlaces or 0) .. "f", num)
+end
+local function    fancy_sukm(distance, thresholds)
+    --display in su/km/m depending on its distance
+    thresholds = thresholds or {km=200000, m=10000}
+    if (distance < thresholds.m) then
+        distance = roundStr(distance, 0) .. " m"
+    elseif (distance < thresholds.km) then
+        distance = roundStr(distance / 1000, 1) .. " km"
+    else
+        distance = roundStr(distance / 200000, 2) .. " su"
+    end
+    return distance
+end
+
 function    requireMinimalPilotingConfig(atmotanks, spacetanks)
     local mpc = {
         piloting = {
@@ -37,7 +83,7 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
         nitronMass = 4,
         kergonMass = 6,
         gearsThreshold = 40,
-        uiPos = vec3(1675, 525, 0),
+        uiPos = vec3(1675, 490, 0),
     }
 
     function	mpc:initTanksData(
@@ -114,7 +160,7 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
 
         --brake calc
         local brakeData = calcBrakeTimeAndDistance(core.getConstructMass(), vec3(core.getWorldVelocity()):len(), self.brakePower)
-        local text1 = math.ceil(brakeData.distance) / 1000 .. "km "
+        local text1 = fancy_sukm(math.floor(brakeData.distance))
         local text2 = " |  " .. dhms(brakeData.time)
         svgcode = svgcode .. string.format([[
             <g style="fill:%s;font-size:12;font-weight:bold;">
@@ -195,9 +241,10 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
         svgcode = svgcode .. self:getSvgFuelGauge(vec3(1800, 1030, 0), true) -- true = right2left
         svgcode = svgcode .. self:getSvgPilotingInfos()
 
-  --  svg.body = svg.body .. svg.toSVG({displayedMenu}, 900, 30, {maxDepth=1})
+--  svg.body = svg.body .. svg.toSVG({displayedMenu}, 900, 30, {maxDepth=1})
         return svgcode
     end
 
     return mpc
 end
+
