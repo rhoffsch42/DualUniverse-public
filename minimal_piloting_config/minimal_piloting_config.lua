@@ -1,5 +1,5 @@
 --[[
-    MPC v1.3
+    MPC v1.4
 
     links (element : slot name) (* are optional):
         - core : core
@@ -21,7 +21,6 @@
 --]]
 
 local function dhms(time, displayAll, sep)
-    --ex: 01d08h12m05s
     displayAll = displayAll or false
     sep = sep or {"d","h","m","s"}
     local dhmsValues = {86400, 3600, 60, 1}
@@ -36,9 +35,8 @@ local function dhms(time, displayAll, sep)
     return res ~= "" and res or ("0"..sep[4])
 end
 local function    sukm(distance, displayAll, sep)
-    --ex: 5su045km458m
     displayAll = displayAll or false
-    sep = sep or {"su","km","m"}
+    sep = sep or {"su","k","m"}
     local sukmValues = {200000, 1000, 1}
     local res = ""
     for i, v in ipairs(sukmValues) do
@@ -54,8 +52,8 @@ local function roundStr(num, numDecimalPlaces)
     return string.format("%." .. (numDecimalPlaces or 0) .. "f", num)
 end
 local function    fancy_sukm(distance, thresholds)
-    --display in su/km/m depending on its distance
     thresholds = thresholds or {km=200000, m=10000}
+    --display in su/km/m depending on its distance
     if (distance < thresholds.m) then
         distance = roundStr(distance, 0) .. " m"
     elseif (distance < thresholds.km) then
@@ -83,10 +81,10 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
         nitronMass = 4,
         kergonMass = 6,
         gearsThreshold = 40,
-        uiPos = vec3(1675, 490, 0),
+        uiPos = vec3(1675, 495, 0),
     }
 
-    function	mpc:initTanksData(
+    function	mpc:initTanksData( -- deprecated
             ContainerOptimization,
             FuelTankOptimization,
             AtmosphericFuelTankHandling,
@@ -96,15 +94,13 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
         self.kergonMass = 6 * (1 - 0.05*(ContainerOptimization + FuelTankOptimization))
         for _, t in pairs(self.atmotanks) do
             t.volume = getTankMaxVolume(t, AtmosphericFuelTankHandling)
-            t.percent = getTankPercent(t, t.volume, self.nitronMass)
         end
         for _, t in pairs(self.spacetanks) do
             t.volume = getTankMaxVolume(t, SpaceFuelTankHandling)
-            t.percent = getTankPercent(t, t.volume, self.kergonMass)
         end
     end
-
-    function    mpc:updateTanksPercent()
+    
+    function    mpc:updateTanksPercent() -- deprecated
         for _, t in pairs(self.atmotanks) do
             t.percent = getTankPercent(t, t.volume, self.nitronMass)
         end
@@ -112,6 +108,55 @@ function    requireMinimalPilotingConfig(atmotanks, spacetanks)
             t.percent = getTankPercent(t, t.volume, self.kergonMass)
         end
     end
+    function	mpc:initTanksDataById(
+            ContainerOptimization,
+            FuelTankOptimization,
+            AtmosphericFuelTankHandling,
+            SpaceFuelTankHandling)
+        
+        self.atmotanks = {}
+        self.spacetanks = {}
+        local uidlist = core.getElementIdList()
+        for i, uid in pairs(uidlist) do
+            local t = core.getElementTypeById(uid)
+            if t == "Atmospheric Fuel Tank" then
+                table.insert(self.atmotanks, {uid=uid})
+            elseif t == "Space Fuel Tank" then
+                table.insert(self.spacetanks, {uid=uid})
+                --[[
+            elseif t == "Rocket Fuel Tank" then
+                table.insert(self.rockettanks, {uid=uid})
+                --]]
+            end
+        end
+
+        -- l, m, s, xs
+        local atmoDefaultHitpoints = {10461, 1315, 163, 50}
+        local spaceDefaultHitpoints = {15933, 1496, 187, 0}
+        local rocketDefaultHitpoints = {38824, 6231, 736, 366}
+
+        self.nitronMass = 4 * (1 - 0.05*(ContainerOptimization + FuelTankOptimization))
+        self.kergonMass = 6 * (1 - 0.05*(ContainerOptimization + FuelTankOptimization))
+        for _, t in pairs(self.atmotanks) do
+            local v, m = getTankVolumeAndMassById(t.uid, AtmosphericFuelTankHandling, atmoDefaultHitpoints)
+            t.volume = v
+            t.mass = m
+        end
+        for _, t in pairs(self.spacetanks) do
+            local v, m = getTankVolumeAndMassById(t.uid, SpaceFuelTankHandling, spaceDefaultHitpoints)
+            t.volume = v
+            t.mass = m
+        end
+    end
+    function    mpc:updateTanksPercentById()
+        for _, t in pairs(self.atmotanks) do
+            t.percent = getTankPercentById(t.uid, t.volume, t.mass, self.nitronMass)
+        end
+        for _, t in pairs(self.spacetanks) do
+            t.percent = getTankPercentById(t.uid, t.volume, t.mass, self.kergonMass)
+        end
+    end
+
     function    mpc:getSvgFuelGauge(pos, right2left)
         pos = pos and vec3(pos) or vec3(10, 100, 0)
         local r = 8
