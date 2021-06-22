@@ -1,4 +1,23 @@
--- BTI v1.2
+--[[
+    BTI v1.2
+    dependency: SvgHelper
+    
+    unit > start
+        svg = requireSvgHelper() -- or require("svghelper")
+        bti = requireBasicTravelInfos()
+        system.showScreen(1)
+        unit.setTimer("eta", 0.25)
+    unit > tick(eta)
+        svg.body = bti:getSvgcode()
+        system.setScreen(svg.dump())
+    system > actionStart(lshift)
+        bti.target = (bti.target - 1 + bti.maxWaypoints - 1) % bti.maxWaypoints + 1
+    system > actionStart(lalt)
+        bti.target = (bti.target - 1 + bti.maxWaypoints + 1) % bti.maxWaypoints + 1
+
+        todo: add sanctuary
+]]
+
 local function dhms(time, displayAll, sep)
     displayAll = displayAll or false
     sep = sep or {"d","h","m","s"}
@@ -15,24 +34,6 @@ local function dhms(time, displayAll, sep)
 end
 
 function requireBasicTravelInfos()
-    --[[
-    dependency: SvgHelper
-    
-    unit > start
-        svg = requireSvgHelper() -- or require("svghelper")
-        bti = requireBasicTravelInfos()
-        system.showScreen(1)
-        unit.setTimer("eta", 0.25)
-    unit > tick(eta)
-        svg.body = bti:getSvgcode()
-        system.setScreen(svg.dump())
-    system > actionStart(lshift)
-        bti.target = (bti.target - 1 + bti.maxWaypoints - 1) % bti.maxWaypoints + 1
-    system > actionStart(lalt)
-        bti.target = (bti.target - 1 + bti.maxWaypoints + 1) % bti.maxWaypoints + 1
-
-    ]]
-    
     local bti = {}
     bti.waypoints = {
         {name="Alioth", x=-8, y=-8, z=-126303},
