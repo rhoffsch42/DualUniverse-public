@@ -1,5 +1,5 @@
 --[[
-    STI v1.0
+    STI v1.2
 
     warning: this does not handle the safe zone
 
@@ -137,6 +137,20 @@ function    requireSafeTravelInfos()
         local pvpDestination = 1920 - offsetX - planetsize.width
         return svgcode, pvpOrigin, pvpDestination
     end
+    function    sti:getSvgDangerZoneForDirectTrajectory(shipHeight, shipPos, destination)
+        local svgcode = ""
+        local dangerDist = vec3(destination - shipPos):len()
+        if shipHeight > self.dangerZonesHeights[1] then
+            dangerDist = dangerDist * self.dangerZonesHeights[1] / shipHeight -- thales
+        end
+        svgcode = svgcode .. string.format([[
+            <text x="%d" y="%d" font-size="50" fill="white">Distance traveled in danger zone</text>
+            <text x="%d" y="%d" font-size="50" fill="white">for direct trajectory : %s su</text>]],
+            975, 50,
+            975, 100, round(dangerDist / 200000 - 2.5, 2))
+
+        return svgcode
+    end
     function    sti:getSvgShip(ypos, x1, x2)
         local svgcode = ""
 
@@ -162,12 +176,14 @@ function    requireSafeTravelInfos()
 
         svgcode = svgcode .. string.format([[
             <circle cx="%d" cy="%d" r="12" fill="black" stroke="white" stroke-width=4 />
-            <text x="%d" y="%d" font-size="50" fill="white" stroke="black" stroke-width=20>%s</text>
+            <text x="%d" y="%d" font-size="50" fill="white" stroke="black" stroke-width="20">%s</text>
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="3" />]],
             xfloor, ypos-yship,
             xfloor+30, ypos-yship, (round(shipHeight/200000, 2).." su"),
             xfloor, ypos, xfloor, ypos-yship)
 
+        --danger zone if going right to desto
+        svgcode = svgcode .. self:getSvgDangerZoneForDirectTrajectory(shipHeight, shipPos, destination)
         return svgcode
     end
 
