@@ -1,3 +1,8 @@
+# Safe Travel Infos
+A visual representation of your ship distance from the warp tunnel between two planets. Fly safe!
+
+![STI](https://i.imgur.com/wuVMGGD.png)
+
 # Basic Travel Infos
 Example:
 ```
