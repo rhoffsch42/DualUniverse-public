@@ -7,10 +7,15 @@ You can select the origin planet on left, and the destination planet on right.
 
 Keep in mind that the height (the distance from the warp line) has not the same scale as the width (the travel route), meaning that angles between them might not represent reality.
 
-![STI](https://i.imgur.com/wuVMGGD.png)
+![STI](https://i.imgur.com/MVowrLb.png)
+
+This matrice is a quick representation of all distances from travel routes. You can hover tiles for more details:
+
+![STI](https://i.imgur.com/U74DtkU.png)
 
 # Install
 1) inject safe_travel_infos.json in a programming board
 2) link core
 3) link a screen
+4) optionnal: link another screen to display more data
 

@@ -1,9 +1,10 @@
 --[[
-    Safe Travel Infos v1.3
+    Safe Travel Infos v1.4
 
     links order:
         1. core
         2. screen
+        3. screen 2 (optionnal)
 
     warning: this does not handle the safe zone
 
@@ -39,6 +40,7 @@ local su = 200000
 
 function    requireSafeTravelInfos()
     local sti = {}
+    sti.__index = sti
     --[[
         todo:
         calculate all heights for all routes, 12*11 too many? display only top 10?
@@ -56,25 +58,9 @@ function    requireSafeTravelInfos()
     sti.dangerZoneScreenHeight = 250 --px
     sti.dangerZonesColors = {"#ff4d4d", "#ff8533", "#ffff66"}
     sti.planetaryProtection = 2.5*su
-    sti.safeRouteAngle = 20 --degree
     sti.bti = nil
     sti.origin = 1
     sti.destination = 2
-    --[[
-        1 Alioth
-        2 Madis
-        3 Thades
-        4 Talemai
-        5 Feli
-        6 Sicari
-        7 Sinnen
-        8 Teoma
-        9 Jago
-        10 Symeon
-        11 Ion
-        12 Lacobus
-    ]]
-
 
     function    sti:setTextColor(color)
         if type(color) == "string" then
@@ -84,15 +70,14 @@ function    requireSafeTravelInfos()
             system.print("Error: wrong type for argument #1 of sti:setTextColor(color), string required")
         end
     end
-
     function    sti:initBti(bti)
         self.bti = bti
         for k, v in pairs(self.bti.waypoints) do
             v.image = image_links[v.name]
         end
     end
-
     function    sti:updateSvghelper(svgh)
+        svgh.style = svgh.style .. [[text {font-family:sans-serif;}]]
         svgh.base = svgh.base .. string.format([[
             <linearGradient  id="danger" x1="0%%" x2="0%%" y1="0%%" y2="100%%">
             <stop offset="5%%" stop-color="none" stop-opacity="1"/>
@@ -143,7 +128,13 @@ function    requireSafeTravelInfos()
             </linearGradient>]], "none")
     end
 
-
+    function    sti.getHeight(shipPos, bodyA, bodyB)
+        local travel = bodyB - bodyA
+        local floorVec = (shipPos - bodyA):project_on(travel)
+        local floorPos = bodyA + floorVec
+        local height = (shipPos - floorPos):len()
+        return height
+    end
     function    sti:getSvgDangerZones(ypos)
         local svgcode = ""
         --gradient zones
@@ -204,14 +195,14 @@ function    requireSafeTravelInfos()
         local pvpDestination = g.w - offsetX - planetsize.width
         return svgcode, pvpOrigin, pvpDestination
     end
-    function    sti:getSvgDangerZoneForDirectTrajectory(shipHeight, shipPos, destination)
+    function    sti:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, shipPos, destination)
         local svgcode = ""
         local dangerDist = vec3(destination - shipPos):len()
         if shipHeight > self.dangerZonesHeights[1] then
             dangerDist = dangerDist * self.dangerZonesHeights[1] / shipHeight -- thales
         end
         dangerDist = math.max(0, dangerDist / su - 2.5)
-        local screenPos = vec3(300, 980, 0)
+        local screenPos = vec3(300, ypos + 280, 0)
         svgcode = svgcode .. string.format([[
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="6" stroke-dasharray="12" />
             <text x="%d" y="%d" font-size="50" fill="%s">Direct trajectory, %s su in danger zone</text>
@@ -235,12 +226,7 @@ function    requireSafeTravelInfos()
         local percent = floorVec:len() / travel:len()
         local floorPos = origin + floorVec
         local shipHeight = (shipPos - floorPos):len()
-        --[[
-            debug.origin = self.bti.waypoints[self.origin].name
-            debug.destination = self.bti.waypoints[self.destination].name
-            debug.percent = percent
-            debug.shipHeight = shipHeight
-        ]]
+        --shipHeight = sti.getHeight(shipPos, origin, destination)
 
         local xfloor = math.floor(x1 + percent * (x2 - x1))
         local yship = math.floor(self.dangerZoneScreenHeight * shipHeight / self.dangerZonesHeights[3])
@@ -258,48 +244,182 @@ function    requireSafeTravelInfos()
             xfloor-30, ypos-ySu+30, (round(shipHeight/su, 2).." su ↥"))
 
         --danger zone if going right to desto
-        svgcode = svgcode .. self:getSvgDangerZoneForDirectTrajectory(shipHeight, shipPos, destination)
+        svgcode = svgcode .. self:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, shipPos, destination)
         return svgcode
     end
-
-    function    sti:getSvgBti(pos)
+    function    sti:getSvgBti(screenPos)
         local svgcode = ""
         svgcode = svgcode .. string.format([[
             <rect x="%d" y="%d" width="%d" height="%d" stroke="none" fill="%s" stroke-width="3" stroke-dasharray="4"/>]],
-            0, 0, g.w, 350, "url(#black-topdown)")
-        svgcode = svgcode .. self.bti:getSvgcode(pos, self.bti.waypoints[self.destination])
+            0, 0, g.w, 500, "url(#black-topdown)")
+        svgcode = svgcode .. self.bti:getSvgcode(screenPos, self.bti.waypoints[self.destination])
         return svgcode
+    end
+
+    function    sti:initHeightsMatrice(screenPos) --need bti
+        self.matrice = {
+            heights = sti.getHeightsFor(vec3(core.getConstructWorldPos()), self.bti.waypoints),
+            buttons = {},
+            buttonsMatrice = {},
+        }
+        local count = #self.matrice.heights
+        local pad = 0
+        local s = 32
+        self.matrice.rect = rect(screenPos.x, screenPos.y, (s+pad)*count, (s+pad)*count)
+
+        for j = 1, count do
+            self.matrice.buttonsMatrice[j] = {}
+            for i = j+1, count do
+                local b = Button(nil, screenPos + vec3((i-1)*(s+pad), (j-1)*(s+pad), 0), {width=s,height=s})
+                b.selected = false
+                b.canToggle = false
+                b.showHintWhenHovered = true
+                b.hint = self.bti.waypoints[j].name .. "⇔" .. self.bti.waypoints[i].name --⇔
+                b.color = "green"
+                self.matrice.buttonsMatrice[j][i] = b
+                table.insert(self.matrice.buttons, b)
+            end
+        end
+    end
+    function    sti:getHeightColor(height)
+        for i, h in ipairs(self.dangerZonesHeights) do 
+            if height < h then
+                return self.dangerZonesColors[i]
+            end
+        end
+        return "none"
+    end
+    function    sti.getHeightsFor(shipPos, waypoints)
+        local heights = {} -- array of array for 2d matrice halved (x:y = y:x and x=y is impossible)
+        local bodyCount = #waypoints
+        for j = 1, bodyCount do
+            heights[j] = {}
+            heights[j][j] = -1 -- should never use this entry
+            local origin = vec3(waypoints[j])
+            for i = j+1, bodyCount do
+                local destination = vec3(waypoints[i])
+                heights[j][i] = sti.getHeight(shipPos, origin, destination)
+            end
+        end
+        return heights
+    end
+    function    sti:updateMatriceButtonsStates(cursorPos)
+        local changes = false
+        if isWithinRect(self.matrice.rect, cursorPos) then
+            changes = Button.updateButtonsStates(self.matrice.buttons, cursorPos)
+        else--manual reset of hover cauz out of the box
+            for i, b in ipairs(self.matrice.buttons) do
+                if b.hovered then
+                    b.hovered = false
+                    changes = true
+                end
+            end
+        end
+        if changes then
+            g.needRefresh = true
+        end
+    end
+    function    sti:getSvgMatrice()
+        local svgcode = ""
+        for i, b in ipairs(self.matrice.buttons) do
+            -- if b.active then
+                svgcode = svgcode .. b:draw(nil, {noRound=true})
+            -- end
+        end
+        return svgcode
+    end
+    function    sti:updateMatriceHeights(shipPos)
+        shipPos = shipPos or vec3(core.getConstructWorldPos())
+        self.matrice.heights = sti.getHeightsFor(shipPos, self.bti.waypoints)
+        local bodyCount = #self.bti.waypoints
+        for j = 1, bodyCount do
+            for i = j+1, bodyCount do
+                self.matrice.buttonsMatrice[j][i].color = self:getHeightColor(self.matrice.heights[j][i])
+                 --⇔
+                self.matrice.buttonsMatrice[j][i].hint = string.format([[%s⇔%s %s su]],
+                    self.bti.waypoints[j].name, self.bti.waypoints[i].name, round(self.matrice.heights[j][i]/su,2))
+                self.matrice.buttonsMatrice[j][i].active = (self.matrice.heights[j][i] < self.dangerZonesHeights[3]) and true or false
+            end
+        end
+    end
+    function    sti:getHtmlCompleteMatrice()
+        local bodyCount = #self.bti.waypoints
+        local htmlcode = ""
+        --header
+        local classes = {"danger1","danger2","danger3","no-danger"}
+        htmlcode = htmlcode .. string.format([[
+            <style>
+            tr th {font-size:4.2vh;font-family:Arial;}
+            .%s {color:%s}
+            .%s {color:%s}
+            .%s {color:%s}
+            .%s {color:%s}
+            </style>
+            <div style="width:100%%;height:100%%;">
+            <table style="width:100%%;height:100%%">]],
+            classes[1], self.dangerZonesColors[1],
+            classes[2], self.dangerZonesColors[2],
+            classes[3], self.dangerZonesColors[3],
+            classes[4], "white")
+        htmlcode = htmlcode .. [[<tr>]]
+        for i = 2, bodyCount do
+                htmlcode = htmlcode .. string.format([[<th>%s</th>]], self.bti.waypoints[i].name)
+        end
+        htmlcode = htmlcode .. string.format([[<th></th></tr>]])
+        --rows
+        for j = 1, bodyCount-1 do
+            htmlcode = htmlcode .. [[<tr>]]
+            for i = 2, bodyCount do
+                local height = ""
+                local class = ""
+                if (i > j) then
+                    height = self.matrice.heights[j][i]
+                    class = classes[4]
+                    for i, h in ipairs(self.dangerZonesHeights) do 
+                        if height < h then
+                            class = classes[i]
+                            break
+                        end
+                    end
+                    class = string.format([[class="%s"]], class)
+                    local close = 8*su
+                    if height > close then -- white gradient
+                        local c = math.max(50,math.floor(255*(1-(height-close)/(20*su))))
+                        class = string.format([[style="color:rgb(%d, %d, %d);"]], c,c,c)
+                    end
+                    local d = height < (10*su) and 2 or 1
+                    height = round(height/su, d)
+                end
+                htmlcode = htmlcode .. string.format([[<th %s>%s</th>]], class, height)
+            end
+            htmlcode = htmlcode .. string.format([[<th>%s</th>]], self.bti.waypoints[j].name)
+            htmlcode = htmlcode .. [[</tr>]]
+        end
+        htmlcode = htmlcode .. [[</table></div>]]
+        return htmlcode
     end
 
     function    sti:getSvgcode()
         local svgcode = ""
-        local ypos = math.floor(g.h*0.60)
+        --first panel
+        local ypos = math.floor(g.h*0.70)
         svgcode = svgcode .. self:getSvgDangerZones(ypos)
         local svgtmp, x1, x2 = self:getSvgPlanetZones(ypos)
         svgcode = svgcode .. svgtmp
         svgcode = svgcode .. self:getSvgShip(ypos, x1, x2)
         svgcode = svgcode .. self:getSvgBti(vec3(30, 75, 0))
-
+        self:updateMatriceHeights()
+        svgcode = svgcode .. self:getSvgMatrice()
         return svgcode
     end
-
-    function    sti:calculateAllHeights()
-        local shipPos = vec3(core.getConstructWorldPos())
-        local heights = {} -- array of array for 2d matrice halved (x:y = y:x and x=y is impossible)
-        for j, body in ipairs(self.bti.waypoints) do
-            heights[i] = {}
-            local origin = vec3(body)
-            for i, body in ipairs(self.bti.waypoints) do
-                if (i ~= j) then
-                    local destination = vec3(self.bti.waypoints[i])
-                    local travel = destination - origin
-                    local floorVec = (shipPos - origin):project_on(travel)
-                    local floorPos = origin + floorVec
-                    local shipHeight = (shipPos - floorPos):len()
-                    heights[j][i] = shipHeight
-                end
+    function    sti:getLateSvgcode()
+        local svgcode = ""
+        for i, b in ipairs(self.matrice.buttons) do
+            if b.active then
+                svgcode = svgcode .. b:lateDraw()
             end
         end
+        return svgcode
     end
 
     return sti
@@ -308,11 +428,10 @@ end
 function    requirePlanetSelector()
     local ps = {}
     ps.color = "darkgray"
-    ps.y = 325
+    ps.y = math.floor(g.h*0.4)
     ps.fontsize = 45
     ps.indent = 10
     
-    ps.cursorPos = {x=0,y=0}
     ps.buttons = {}
     ps.planetSelectionOrigin = ButtonGroup()
     ps.planetSelectionDestination = ButtonGroup()
@@ -327,8 +446,8 @@ function    requirePlanetSelector()
             b1.buttonGroup = self.planetSelectionOrigin
             b1.active = true
             b1.canToggle = true
-            self.planetSelectionOrigin:add(b1)
             b1.onClick = selectOrigin
+            self.planetSelectionOrigin:add(b1)
             table.insert(self.buttons, b1)
             self._originIndexMap[v.name] = i
 
@@ -336,24 +455,17 @@ function    requirePlanetSelector()
             b2.buttonGroup = self.planetSelectionDestination
             b2.active = true
             b2.canToggle = true
-            self.planetSelectionDestination:add(b2)
             b2.onClick = selectDestination
+            self.planetSelectionDestination:add(b2)
             table.insert(self.buttons, b2)
             self._destinationIndexMap[v.name] = i
         end
     end
 
-    function    ps:update()
-        local pos = {
-            x = math.floor(screen.getMouseX()*g.w),
-            y = math.floor(screen.getMouseY()*g.h)
-        }
-        if (pos.x ~= self.cursorPos.x) or (pos.y ~= self.cursorPos.y) then
-            self.cursorPos = pos
-            local changes = Button.updateButtonsStates(self.buttons, self.cursorPos)
-            if changes then
-                g.needRefresh = true
-            end
+    function    ps:update(cursorPos)
+        local changes = Button.updateButtonsStates(self.buttons, cursorPos)
+        if changes then
+            g.needRefresh = true
         end
     end
 
@@ -376,6 +488,14 @@ function    requirePlanetSelector()
         return svgcode
     end
 
+    function    ps:getLateSvgcode()
+        local svgcode = ""
+        for i, v in ipairs(self.buttons) do
+            svgcode = svgcode .. v:lateDraw()
+        end
+        return svgcode
+    end
+
     function    ps:tryClick(x, y)
         Button.tryClickOnButtons(self.buttons, {x=x, y=y})
     end
@@ -387,11 +507,10 @@ end
 function    selectOrigin()
     local b = selector.planetSelectionOrigin.selected[1]
     if b then 
-        local i = selector._originIndexMap[b.text]
-        sti.origin = i
+        local old_origin = sti.origin
+        sti.origin = selector._originIndexMap[b.text]
         if sti.destination == sti.origin then
-            local p = sti.origin ~= 1 and 1 or 2
-            selector.planetSelectionDestination[p]:_click()
+            selector.planetSelectionDestination[old_origin]:_click()
         end
         g.needRefresh = true
     else -- clicked on the current selection, just reselect it (= always 1 selected)
@@ -401,11 +520,10 @@ end
 function    selectDestination()
     local b = selector.planetSelectionDestination.selected[1]
     if b then 
-        local i = selector._destinationIndexMap[b.text]
-        sti.destination = i
+        local old_destination = sti.destination
+        sti.destination = selector._destinationIndexMap[b.text]
         if sti.origin == sti.destination then
-            local p = sti.destination ~= 1 and 1 or 2
-            selector.planetSelectionOrigin[p]:_click()
+            selector.planetSelectionOrigin[old_destination]:_click()
         end
         g.needRefresh = true
     else -- unselected the current selection, just reselect it (always 1 selected)
