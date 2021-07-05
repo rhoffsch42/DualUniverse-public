@@ -9,7 +9,9 @@ Keep in mind that the height (the distance from the warp line) has not the same 
 
 ![STI](https://i.imgur.com/MVowrLb.png)
 
-This matrice is a quick representation of all distances from travel routes. You can hover tiles for more details:
+This matrice is a quick representation of all distances from travel routes.
+Tiles will be red, orange or yellow if the distance is inferior to 2, 4 or 6 su respectively.
+You can hover tiles for more details:
 
 ![STI](https://i.imgur.com/U74DtkU.png)
 
