@@ -1,22 +1,69 @@
 --[[
-    Safe Travel Infos v1.4
+    Safe Travel Infos v1.5
 
     links order:
         1. core
         2. screen
         3. screen 2 (optionnal)
 
-    warning: this does not handle the safe zone
-
     dep:
         svghelper
         Basic Travel Infos
 ]]
-
+local function roundStr(num, numDecimalPlaces)
+    return string.format("%." .. (numDecimalPlaces or 0) .. "f", num)
+end
+local function    fancy_sukm(distance, thresholds)
+    thresholds = thresholds or {km=200000, m=10000}
+    --display in su/km/m depending on its distance
+    if (distance < thresholds.m) then
+        distance = roundStr(distance, 0) .. " m"
+    elseif (distance < thresholds.km) then
+        distance = roundStr(distance / 1000, 1) .. " km"
+    else
+        distance = roundStr(distance / 200000, 2) .. " su"
+    end
+    return distance
+end
 local function round(num, numDecimalPlaces)
     local mult = 10^(numDecimalPlaces or 0)
     return math.floor(num * mult + 0.5) / mult
 end
+
+local svglib = {
+    pvp = [[
+        <svg id="pvp" x="0" y="0" width="250" height="250"
+        xmlns="http://www.w3.org/2000/svg"
+        xmlns:xlink="http://www.w3.org/1999/xlink" 
+             viewBox="0 4 22.778 22.778" >
+            <g>
+                <polygon points="17.931,15.433 18.83,10.328 14.412,12.625 12.438,8.625 10.468,12.616 6.05,10.269 
+                    6.912,15.437 2.098,16.137 4.685,18.66 5.68,18.66 3.59,16.622 7.713,16.021 6.967,11.542 10.773,13.566 12.438,10.193 
+                    14.103,13.568 17.903,11.593 17.122,16.017 21.285,16.622 19.196,18.66 20.19,18.66 22.778,16.137 		"/>
+                <polygon points="16.322,16.545 16.95,12.977 13.84,14.594 12.427,11.732 11.02,14.583 7.917,12.935 
+                    8.518,16.548 5.119,17.042 6.777,18.66 8.766,18.66 8.102,18.012 10.121,17.718 9.748,15.481 11.631,16.483 12.427,14.87 
+                    13.222,16.479 15.095,15.507 14.704,17.714 16.752,18.012 16.088,18.66 18.076,18.66 19.737,17.042 		"/>
+                <path d="M12.438,17.909c-0.503,0-0.91,0.408-0.91,0.911h1.822C13.35,18.316,12.942,17.909,12.438,17.909z"
+                    />
+                <polygon points="17.915,3.958 14.888,10.515 15.382,10.72 "/>
+                <polygon points="5.694,14.399 0,9.958 5.348,14.809 "/>
+                <polygon points="21.633,11.866 19.072,14.083 19.453,14.458 "/>
+                <polygon points="10.303,10.5 8.866,7.43 9.801,10.688 "/>
+                <text x="12.2" y="25.5" font-size="8" text-anchor="middle">PVP</text>
+            </g>
+        </svg>
+    ]],
+    safe = [[
+        <svg id="safe" x="0" y="0" width="160" height="160"
+        xmlns="http://www.w3.org/2000/svg"
+        xmlns:xlink="http://www.w3.org/1999/xlink"
+             viewBox="0 0 32 32" >
+             <path d="M29.6,5.2C29.3,5,29,4.9,28.7,5.1c-4.3,1.4-8.7,0.3-12-2.8c-0.4-0.4-1-0.4-1.4,0c-3.3,3.1-7.7,4.2-12,2.8
+            C3,4.9,2.7,5,2.4,5.2S2,5.7,2,6c0,15.7,6.9,20.9,13.6,23.9C15.7,30,15.9,30,16,30s0.3,0,0.4-0.1C23.1,26.9,30,21.7,30,6
+            C30,5.7,29.8,5.4,29.6,5.2z"/>
+        </svg>
+    ]]
+}
 
 local image_links = {
     Generic_Moon = "assets.prod.novaquark.com/20368/f410e727-9d4d-4eab-98bf-22994b3fbdcf.png",
@@ -78,6 +125,9 @@ function    requireSafeTravelInfos()
     end
     function    sti:updateSvghelper(svgh)
         svgh.style = svgh.style .. [[text {font-family:sans-serif;}]]
+        for k, v in pairs(svglib) do
+            svgh.base = svgh.base .. v
+        end
         svgh.base = svgh.base .. string.format([[
             <linearGradient  id="danger" x1="0%%" x2="0%%" y1="0%%" y2="100%%">
             <stop offset="5%%" stop-color="none" stop-opacity="1"/>
@@ -196,13 +246,14 @@ function    requireSafeTravelInfos()
         return svgcode, pvpOrigin, pvpDestination
     end
     function    sti:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, shipPos, destination)
-        local svgcode = ""
         local dangerDist = vec3(destination - shipPos):len()
         if shipHeight > self.dangerZonesHeights[1] then
             dangerDist = dangerDist * self.dangerZonesHeights[1] / shipHeight -- thales
         end
         dangerDist = math.max(0, dangerDist / su - 2.5)
         local screenPos = vec3(300, ypos + 280, 0)
+
+        local svgcode = ""
         svgcode = svgcode .. string.format([[
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="6" stroke-dasharray="12" />
             <text x="%d" y="%d" font-size="50" fill="%s">Direct trajectory, %s su in danger zone</text>
@@ -212,12 +263,9 @@ function    requireSafeTravelInfos()
             screenPos.x + 110, screenPos.y, self.dangerZonesColors[1], round(dangerDist, 2),
             self.color,
             screenPos.x + 110, screenPos.y, round(dangerDist, 2))
-
         return svgcode
     end
-    function    sti:getSvgShip(ypos, x1, x2)
-        local svgcode = ""
-
+    function    sti:getSvgShipHeight(ypos, x1, x2)
         local origin = vec3(self.bti.waypoints[self.origin])
         local destination = vec3(self.bti.waypoints[self.destination])
         local travel = destination - origin
@@ -233,13 +281,14 @@ function    requireSafeTravelInfos()
         --yship = math.min(yship, 350)
         local ySu = math.min(yship, 350)
 
+        local svgcode = ""
         svgcode = svgcode .. string.format([[
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="3" />
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="6" stroke-dasharray="12" />
             <circle cx="%d" cy="%d" r="12" fill="black" stroke="white" stroke-width=4 />
             <text x="%d" y="%d" font-size="50" fill="white" stroke="black" stroke-width="20" text-anchor="end">%s</text>]],
             xfloor, ypos, xfloor, ypos-yship,
-            xfloor, ypos-yship, x2, ypos,
+            x2, ypos, xfloor, ypos-yship,
             xfloor, ypos-yship,
             xfloor-30, ypos-ySu+30, (round(shipHeight/su, 2).." su ↥"))
 
@@ -399,6 +448,64 @@ function    requireSafeTravelInfos()
         return htmlcode
     end
 
+    -- adapted JayleBreak function PlanetarySystem:closestBody(coordinates)
+    function    sti:getClosestBody(shipPos)
+        --planets
+        local minDistance2 = (self.atlas[1].center - shipPos):len2()
+        local body = self.atlas[1]
+        for _, b in ipairs(self.atlas) do
+            local distance2 = (b.center - shipPos):len2()
+            if distance2 < minDistance2 then
+                body = b
+                minDistance2 = distance2
+            end
+        end
+        --moons
+        for _, m in ipairs(body.moons) do
+            local distance2 = (m.center - shipPos):len2()
+            if distance2 < minDistance2 then
+                body = m
+                minDistance2 = distance2
+            end
+        end
+        return body, math.sqrt(minDistance2)
+    end
+    function    sti:getSvgSafeZoneStatus(shipPos, screenPos)
+        screenPos = screenPos or vec3(10, 10, 0)
+        --safe zone
+        local safeZone = vec3(13771471, 7435803, -128971) -- center of safe zone (a sphere), from Archaegeo
+        local safefrontierDist = 18000000 - (shipPos - safeZone):len() -- 90su
+        --planetary protection
+        local closestBody, closestBodyDist = sti:getClosestBody(shipPos)
+        local bodyFrontierDist = 500000 - closestBodyDist -- 2.5su
+
+        local safe = (safefrontierDist > 0) or (bodyFrontierDist > 0)
+
+        local svgcode = ""
+        --icons
+        svgcode = svgcode .. string.format([[<use x="%d" y="%d" fill="%s" xlink:href="#pvp" />]],
+            screenPos.x, screenPos.y, safe and self.color or "#ff4d4d")
+        if safe then
+            svgcode = svgcode .. string.format([[<use x="%d" y="%d" fill="#33cc33" xlink:href="#safe" />]],
+                screenPos.x+85, screenPos.y+125)
+        end
+        --text
+        local textpos = screenPos + vec3(140, 310, 0)
+        local fs = 28
+        local pad = 3
+        svgcode = svgcode .. string.format([[
+            <g text-anchor="middle" fill="%s" font-size="%d">
+            <text x="%d" y="%d">Boundarys:</text>
+            <text x="%d" y="%d">%s - Safe Zone</text>
+            <text x="%d" y="%d">%s - %s</text>
+            </g>]],
+            self.color, fs,
+            textpos.x, textpos.y,
+            textpos.x, textpos.y+fs*1+pad*2, fancy_sukm(math.abs(safefrontierDist)),
+            textpos.x, textpos.y+fs*2+pad*1, fancy_sukm(math.abs(bodyFrontierDist)), closestBody.name)
+            return svgcode
+    end
+
     function    sti:getSvgcode()
         local svgcode = ""
         --first panel
@@ -406,10 +513,11 @@ function    requireSafeTravelInfos()
         svgcode = svgcode .. self:getSvgDangerZones(ypos)
         local svgtmp, x1, x2 = self:getSvgPlanetZones(ypos)
         svgcode = svgcode .. svgtmp
-        svgcode = svgcode .. self:getSvgShip(ypos, x1, x2)
-        svgcode = svgcode .. self:getSvgBti(vec3(30, 75, 0))
+        svgcode = svgcode .. self:getSvgShipHeight(ypos, x1, x2)
+        svgcode = svgcode .. self:getSvgBti(vec3(30, 60, 0))
         self:updateMatriceHeights()
         svgcode = svgcode .. self:getSvgMatrice()
+        svgcode = svgcode .. self:getSvgSafeZoneStatus(vec3(core.getConstructWorldPos()), vec3(1580,15,0))
         return svgcode
     end
     function    sti:getLateSvgcode()
