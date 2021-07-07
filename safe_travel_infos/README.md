@@ -20,7 +20,7 @@ The safe zone status shows if you're inside the pvp zone or not. The values unde
 
 ![STI](https://i.imgur.com/0t3unb8.png)
 
-This matrice is a quick representation of all distances from travel routes.
+This grid is a quick representation of all distances from travel routes.
 Tiles can have different colors: red, orange or yellow if the distance is inferior to 2, 4 or 6 su respectively.
 You can hover tiles for more details:
 
