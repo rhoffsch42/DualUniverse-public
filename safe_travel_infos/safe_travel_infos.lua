@@ -1,5 +1,5 @@
 --[[
-    Safe Travel Infos v1.5
+    Safe Travel Infos v1.6
 
     links order:
         1. core
@@ -178,12 +178,12 @@ function    requireSafeTravelInfos()
             </linearGradient>]], "none")
     end
 
-    function    sti.getHeight(shipPos, bodyA, bodyB)
-        local travel = bodyB - bodyA
-        local floorVec = (shipPos - bodyA):project_on(travel)
-        local floorPos = bodyA + floorVec
-        local height = (shipPos - floorPos):len()
-        return height
+    function    sti.getHeight(shipPos, origin, destination)
+        local travel = destination - origin
+        local floorVec = (shipPos - origin):project_on(travel)
+        local floorPos = origin + floorVec
+        local heightVec = shipPos - floorPos
+        return heightVec:len()
     end
     function    sti:getSvgDangerZones(ypos)
         local svgcode = ""
@@ -271,7 +271,8 @@ function    requireSafeTravelInfos()
         local travel = destination - origin
         local shipPos = vec3(core.getConstructWorldPos())
         local floorVec = (shipPos - origin):project_on(travel)
-        local percent = floorVec:len() / travel:len()
+        local sign = (floorVec:dot(travel) > 0) and 1 or -1
+        local percent = floorVec:len() / travel:len() * sign --travel scale
         local floorPos = origin + floorVec
         local shipHeight = (shipPos - floorPos):len()
         --shipHeight = sti.getHeight(shipPos, origin, destination)
