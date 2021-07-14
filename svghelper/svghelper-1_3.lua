@@ -11,7 +11,7 @@ function requireSvgHelper()
     svg._displayTable = true
 
     function svg.dump()
-        return svg.header .. svg.style .. "</style><defs>" .. svg.base .. "</defs>" .. svg.body .. svg.footer
+        return svg.header .. "<style>" .. svg.style .. "</style><defs>" .. svg.base .. "</defs>" .. svg.body .. svg.footer
     end
 
     function svg.toSVG(arr, x, ystart, settings, depth)
@@ -102,21 +102,13 @@ function requireSvgHelper()
     
 
     svg.header = [[
-    <svg class="svg"
-    width="1920" height="1080"
-    viewBox="0 0 1920 1080"
+    <svg class="svg" viewBox="0 0 1920 1080" preserveAspectRatio="none" 
     xmlns="http://www.w3.org/2000/svg" 
     xmlns:xlink="http://www.w3.org/1999/xlink"> 
-    <style>
-    .svg {
-    position:absolute;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    width: 100vw;
-    }
     ]]
-    svg.style = [[]]
+    svg.style = [[
+    .svg {position:absolute;left:0;top:0;height:100vh;width:100vw;}
+    ]]
     svg.base = [[]]
     svg.footer = [[</svg>]]
     svg.body = [[]]
