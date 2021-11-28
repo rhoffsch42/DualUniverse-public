@@ -9,8 +9,10 @@ A visual representation of your ship distance from the warp tunnel between two p
 
 # Presentation
 You can select the origin planet on left and the destination planet on right, to know the ship's closest distance to the warp tunnel.
+
 In addition to that, it shows the distance traveled in the danger zone when going straight to the destination.
 The danger zone, represented as a red area here, is simply a tube around the warp line. Its ray is the range of the space radar: 2su.
+
 The green ellipse is the safe zone. Why it's not a circle? Because the vertical and horizontal scales are different, the vertical one is much more stretched. So keep in mind that the height (the distance from the warp line) and the width (the travel route) have different scales, meaning that the angles of trajectorys might not represent reality.
 
 ![STI](https://i.imgur.com/xyGo8Ac.png)
