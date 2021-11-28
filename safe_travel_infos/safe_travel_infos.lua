@@ -1,5 +1,5 @@
 --[[
-    Safe Travel Infos v1.6
+    Safe Travel Infos v1.7
 
     links order:
         1. core
@@ -10,6 +10,7 @@
         svghelper
         Basic Travel Infos
 ]]
+local min, max, floor, sqrt, abs = math.min, math.max, math.floor, math.sqrt, math.abs
 local function roundStr(num, numDecimalPlaces)
     return string.format("%." .. (numDecimalPlaces or 0) .. "f", num)
 end
@@ -27,7 +28,19 @@ local function    fancy_sukm(distance, thresholds)
 end
 local function round(num, numDecimalPlaces)
     local mult = 10^(numDecimalPlaces or 0)
-    return math.floor(num * mult + 0.5) / mult
+    return floor(num * mult + 0.5) / mult
+end
+local function interSpherePlan(sphere, plan)
+    local circle = {}
+    circle.center = sphere.center:project_on_plane(plan)
+    circle.r = 0
+    local translation = circle.center - sphere.center
+    local dist2 = translation:len2()
+    local r2 = sphere.r*sphere.r
+    if dist2 < r2 then
+        circle.r = sqrt(r2 - dist2)
+    end
+    return circle
 end
 
 local svglib = {
@@ -90,12 +103,13 @@ function    requireSafeTravelInfos()
     sti.__index = sti
     --[[
         todo:
-        calculate all heights for all routes, 12*11 too many? display only top 10?
-        calculate the safe zone bubble
-            need 4 points?
+        ship trajectory simulation (screen 3?):
+            slider for the desto dist , or the remaining dist in the ship trajectory until it hit the destination wall
+            autoplay, repeat
         detect if parabol trajectory is in the middle of another travel route
             give the best parabol route depending of the angle, with a set desto point
     ]]
+    sti.experimental = false
     sti.color = "white"
     sti.dangerZonesHeights = {
         2*su, -- the detection range of a space radar, 100% sure to be caught by a scout warping
@@ -108,6 +122,11 @@ function    requireSafeTravelInfos()
     sti.bti = nil
     sti.origin = 1
     sti.destination = 2
+    sti.safeZone = { -- a sphere
+        center = vec3(13771471, 7435803, -128971), -- from Archaegeo
+        r = 18000000, -- 90su
+    }
+    sti.shipPos = vec3(core.getConstructWorldPos())
 
     function    sti:setTextColor(color)
         if type(color) == "string" then
@@ -130,15 +149,15 @@ function    requireSafeTravelInfos()
         end
         svgh.base = svgh.base .. string.format([[
             <linearGradient  id="danger" x1="0%%" x2="0%%" y1="0%%" y2="100%%">
-            <stop offset="5%%" stop-color="none" stop-opacity="1"/>
+            <stop offset="5%%" stop-color="none" stop-opacity="0"/>
             <stop offset="10%%" stop-color="%s" stop-opacity="1"/>
             <stop offset="30%%" stop-color="%s" stop-opacity="1"/>
             <stop offset="40%%" stop-color="%s" stop-opacity="1"/>
             <stop offset="60%%" stop-color="%s" stop-opacity="1"/>
             <stop offset="70%%" stop-color="%s" stop-opacity="1"/>
             <stop offset="90%%" stop-color="%s" stop-opacity="1"/>
-            <stop offset="95%%" stop-color="none" stop-opacity="1"/>
-            <stop offset="100%%" stop-color="none" stop-opacity="1" />
+            <stop offset="95%%" stop-color="none" stop-opacity="0"/>
+            <stop offset="100%%" stop-color="none" stop-opacity="0" />
             </linearGradient>]],
             self.dangerZonesColors[3],
             self.dangerZonesColors[2],
@@ -183,35 +202,37 @@ function    requireSafeTravelInfos()
         local floorVec = (shipPos - origin):project_on(travel)
         local floorPos = origin + floorVec
         local heightVec = shipPos - floorPos
-        return heightVec:len()
+        return heightVec:len(), heightVec
     end
-    function    sti:getSvgDangerZones(ypos)
+    function    sti:getSvgDangerZones(ypos, x1, x2)
         local svgcode = ""
         --gradient zones
         svgcode = svgcode .. string.format([[
-            <rect x="0" y="%d" width="%d" height="%d" fill="url(#danger)" />
-            ]], ypos-self.dangerZoneScreenHeight, g.w, self.dangerZoneScreenHeight*2)
-        --base route (flashy red)
+            <rect x="%d" y="%d" rx="%d" ry="%d"
+            width="%d" height="%d" fill="url(#danger)" />]],
+            x1-5, ypos-self.dangerZoneScreenHeight, 50, self.dangerZoneScreenHeight,
+            x2-x1+10, self.dangerZoneScreenHeight*2)
+        --warp tunnel (flashy red)
         svgcode = svgcode .. string.format([[
-            <line x1="0" y1="%d" x2="%s" y2="%d" stroke="#cc0000" stroke-width="7" />
-            ]], ypos, g.w, ypos)
-        --warp tunnel
+            <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#cc0000" stroke-width="7" />]],
+            x1, ypos, x2, ypos)
+        --warp tunnel text
         svgcode = svgcode .. string.format([[
-            <text x="%d" y="%d" font-size="%d" fill="#660000" text-anchor="middle">warp tunnel</text>
-            ]], g.w/2, ypos+25, 20)
+            <text x="%d" y="%d" font-size="%d" fill="#660000" text-anchor="middle">warp tunnel</text>]],
+            (x1+x2)/2, ypos+25, 20)
         return svgcode
     end
-    function    sti:getSvgPlanetZones(ypos)
+    function    sti:getSvgPlanetZones(ypos, x1, x2)
         local svgcode = ""
         local planetsize = {width=300, height=300}
         local offsetX = 100
         
         --planetary protection
-        svgcode = svgcode .. string.format([[
-            <circle cx="%d" cy="%d" r="%d" fill="black" />
-            <circle cx="%d" cy="%d" r="%d" fill="black" />
-        ]], offsetX, math.floor(ypos),  math.floor(planetsize.width),
-            g.w-offsetX, math.floor(ypos),  math.floor(planetsize.width))
+        -- svgcode = svgcode .. string.format([[
+        --     <circle cx="%d" cy="%d" r="%d" fill="black" />
+        --     <circle cx="%d" cy="%d" r="%d" fill="black" />
+        -- ]], offsetX, floor(ypos),  floor(planetsize.width),
+        --     g.w-offsetX, floor(ypos),  floor(planetsize.width))
 
         --image
         if true then
@@ -221,36 +242,54 @@ function    requireSafeTravelInfos()
             local originViewbox = {}
             local destinationViewbox = {}
             local c = (sti.origin == 3 and 2 or 1) * pcoef
-            originViewbox.x = math.floor(0+offsetX-planetsize.width/2 * c)
-            originViewbox.y = math.floor(ypos-planetsize.height/2 * c)
+            originViewbox.x = floor(0+offsetX-planetsize.width/2 * c)
+            originViewbox.y = floor(ypos-planetsize.height/2 * c)
             originViewbox.width = planetsize.width * c
             originViewbox.height = planetsize.height * c
             c = (sti.destination == 3 and 2 or 1) * pcoef
-            destinationViewbox.x = math.floor(g.w-offsetX-planetsize.width/2 * c)
-            destinationViewbox.y = math.floor(ypos-planetsize.height/2 * c)
+            destinationViewbox.x = floor(g.w-offsetX-planetsize.width/2 * c)
+            destinationViewbox.y = floor(ypos-planetsize.height/2 * c)
             destinationViewbox.width = planetsize.width * c
             destinationViewbox.height = planetsize.height * c
 
+            --resized for bg
+            if true then
+                c = (sti.origin == 3 and 1.5 or 1)
+                originViewbox.width = floor(g.w * 0.4 * c)
+                originViewbox.height = floor(g.w * 0.4 * c)
+                originViewbox.x = x1 - originViewbox.width/2
+                originViewbox.y = ypos - originViewbox.height/2
+                originViewbox.y = floor(originViewbox.height*0.25) - originViewbox.height/2
+                c = (sti.destination == 3 and 1.5 or 1)
+                destinationViewbox.width = floor(g.w * 0.4 * c)
+                destinationViewbox.height = floor(g.w * 0.4 * c)
+                destinationViewbox.x = x2 - destinationViewbox.width/2
+                destinationViewbox.y = ypos - destinationViewbox.height/2
+                destinationViewbox.y = floor(destinationViewbox.height*0.25) - destinationViewbox.height/2
+            end
+            --end
+            svgcode = svgcode .. [[<g opacity="0.80">]]
             svgcode = svgcode .. svg.imageCut(self.bti.waypoints[self.origin].image, imageSize, originViewbox, svgViewbox)
             svgcode = svgcode .. svg.imageCut(self.bti.waypoints[self.destination].image, imageSize, destinationViewbox, svgViewbox)
+            svgcode = svgcode .. [[</g>]]
         else -- or simple circle
             svgcode = svgcode .. string.format([[
                 <circle cx="%d" cy="%d" r="%d" fill="%s" />
                 <circle cx="%d" cy="%d" r="%d" fill="%s" />
-            ]], offsetX, math.floor(ypos),  math.floor(planetsize.width/2), "#734d26",
-                g.w-offsetX, math.floor(ypos),  math.floor(planetsize.width/2), "#734d26")
+            ]], offsetX, floor(ypos),  floor(planetsize.width/2), "#734d26",
+                g.w-offsetX, floor(ypos),  floor(planetsize.width/2), "#734d26")
         end
 
-        local pvpOrigin = offsetX + planetsize.width
-        local pvpDestination = g.w - offsetX - planetsize.width
-        return svgcode, pvpOrigin, pvpDestination
+        -- local pvpOrigin = offsetX + planetsize.width
+        -- local pvpDestination = g.w - offsetX - planetsize.width
+        return svgcode--, pvpOrigin, pvpDestination
     end
     function    sti:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, shipPos, destination)
         local dangerDist = vec3(destination - shipPos):len()
         if shipHeight > self.dangerZonesHeights[1] then
             dangerDist = dangerDist * self.dangerZonesHeights[1] / shipHeight -- thales
         end
-        dangerDist = math.max(0, dangerDist / su - 2.5)
+        dangerDist = max(0, dangerDist / su - 2.5)
         local screenPos = vec3(300, ypos + 280, 0)
 
         local svgcode = ""
@@ -265,24 +304,34 @@ function    requireSafeTravelInfos()
             screenPos.x + 110, screenPos.y, round(dangerDist, 2))
         return svgcode
     end
-    function    sti:getSvgShipHeight(ypos, x1, x2)
+    function    sti:getSvgShipHeight(ypos, x1, x2)--and safe zone projection on the plan({origin, destination, shipPos})
+        --todo?: use the cam object to free all projection code, place it depending of the travel route and ship pos&height plan
         local origin = vec3(self.bti.waypoints[self.origin])
         local destination = vec3(self.bti.waypoints[self.destination])
-        local travel = destination - origin
-        local shipPos = vec3(core.getConstructWorldPos())
-        local floorVec = (shipPos - origin):project_on(travel)
-        local sign = (floorVec:dot(travel) > 0) and 1 or -1
-        local percent = floorVec:len() / travel:len() * sign --travel scale
+        local travelVec = destination - origin
+        local travelDist = travelVec:len()
+        local floorVec = (self.shipPos - origin):project_on(travelVec)
+        local sign = (floorVec:dot(travelVec) > 0) and 1 or -1
+        local percent = floorVec:len() / travelDist * sign --travel scale
         local floorPos = origin + floorVec
-        local shipHeight = (shipPos - floorPos):len()
-        --shipHeight = sti.getHeight(shipPos, origin, destination)
+        local shipHeightVec = self.shipPos - floorPos
+        local shipHeight = shipHeightVec:len()
+        --shipHeight = sti.getHeight(self.shipPos, origin, destination)
 
-        local xfloor = math.floor(x1 + percent * (x2 - x1))
-        local yship = math.floor(self.dangerZoneScreenHeight * shipHeight / self.dangerZonesHeights[3])
-        --yship = math.min(yship, 350)
-        local ySu = math.min(yship, 350)
+        local warpLineScreenLen = x2 - x1
+        local xfloor = floor(x1 + percent * warpLineScreenLen)
+        local yship = floor(self.dangerZoneScreenHeight * shipHeight / self.dangerZonesHeights[3])
+        local ySu = min(yship, 350)
 
         local svgcode = ""
+        --planet on warp line
+        svgcode = svgcode .. string.format([[
+            <circle cx="%d" cy="%d" r="%d" fill="%s" />
+            <circle cx="%d" cy="%d" r="%d" fill="%s" />]],
+            x1-25, ypos, 38, self.color,
+            x2+25, ypos, 38, self.color)
+
+        --ship height and pos
         svgcode = svgcode .. string.format([[
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="3" />
             <line x1="%d" y1="%d" x2="%d" y2="%d" stroke="darkgray" stroke-width="6" stroke-dasharray="12" />
@@ -291,28 +340,67 @@ function    requireSafeTravelInfos()
             xfloor, ypos, xfloor, ypos-yship,
             x2, ypos, xfloor, ypos-yship,
             xfloor, ypos-yship,
-            xfloor-30, ypos-ySu+30, (round(shipHeight/su, 2).." su ↥"))
+            min(x2+35,max(x1+180, xfloor-30)), ypos-ySu+30, (round(shipHeight/su, 2).." su ↥"))
 
-        --danger zone if going right to desto
-        svgcode = svgcode .. self:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, shipPos, destination)
-        return svgcode
+        --text : danger zone if going right to desto
+        svgcode = svgcode .. self:getSvgDangerZoneForDirectTrajectory(ypos, shipHeight, self.shipPos, destination)
+        
+        -- safe zone bubble
+        local svgSafeZone = ""
+        if self.experimental then
+            --coordinate system of the current travel route on screen
+            local coosys = {origin=origin, x=travelVec:normalize(), y=shipHeightVec:normalize()}
+            coosys.z = (coosys.x:cross(coosys.y)):normalize()
+            local scale = {x = travelDist / warpLineScreenLen, y = self.dangerZonesHeights[3] / self.dangerZoneScreenHeight}
+
+            -- manual recon
+            -- local recon = {}
+            -- for yy=1, 10, 1 do
+            --     recon[yy] = {}
+            --     for xx=5, 35, 1 do
+            --         local fakepos = coosys.origin + coosys.x * xx * su * 2.5
+            --                                + coosys.y * yy * su * 1
+            --         local safefrontierDist = self.safeZone.r - (fakepos - self.safeZone.center):len()
+            --         local color = (safefrontierDist > 0) and "green" or "red"
+            --         svgSafeZone = svgSafeZone .. string.format([[
+            --             <circle cx="%d" cy="%d" r="5" fill="%s" />]],
+            --             floor(x1 + (xx * su * 2.5 / scale.x)),
+            --             floor(ypos - (yy * su / scale.y)),
+            --       --      floor(x1 + xx / scale.x),
+            --       --      floor(ypos + yy / scale.y),
+            --             color)
+            --     end
+            -- end
+
+            local safeZoneCircle = interSpherePlan({center=self.safeZone.center - coosys.origin, r=self.safeZone.r}, coosys.z)-- relative to the origin of the coosys
+            if safeZoneCircle.r > 0 then
+                local proj = {-- projected in the coosys and scaled to the screen
+                    x = x1 + safeZoneCircle.center:dot(coosys.x) / scale.x,
+                    y = ypos - safeZoneCircle.center:dot(coosys.y) / scale.y,
+                }
+                svgSafeZone = svgSafeZone .. string.format([[
+                    <ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill-opacity="0.15" fill="#33cc33" stroke="#33cc33" stroke-width="3" />]],
+                    floor(proj.x), floor(proj.y), floor(safeZoneCircle.r / scale.x), floor(safeZoneCircle.r / scale.y))
+            end
+        end
+        return svgSafeZone .. svgcode
     end
     function    sti:getSvgBti(screenPos)
         local svgcode = ""
-        svgcode = svgcode .. string.format([[
-            <rect x="%d" y="%d" width="%d" height="%d" stroke="none" fill="%s" stroke-width="3" stroke-dasharray="4"/>]],
-            0, 0, g.w, 500, "url(#black-topdown)")
+        -- svgcode = svgcode .. string.format([[
+        --     <rect x="%d" y="%d" width="%d" height="%d" stroke="none" fill="%s" stroke-width="3" stroke-dasharray="4"/>]],
+        --     0, 0, g.w, 500, "url(#black-topdown)")
         svgcode = svgcode .. self.bti:getSvgcode(screenPos, self.bti.waypoints[self.destination])
         return svgcode
     end
 
     function    sti:initHeightsMatrice(screenPos) --need bti
         self.matrice = {
-            heights = sti.getHeightsFor(vec3(core.getConstructWorldPos()), self.bti.waypoints),
+            heights = sti.getHeightsFor(self.shipPos, self.bti.waypoints),
             buttons = {},
             buttonsMatrice = {},
         }
-        local count = #self.matrice.heights
+        local count = #self.bti.waypoints
         local pad = 0
         local s = 32
         self.matrice.rect = rect(screenPos.x, screenPos.y, (s+pad)*count, (s+pad)*count)
@@ -434,7 +522,7 @@ function    requireSafeTravelInfos()
                     class = string.format([[class="%s"]], class)
                     local close = 8*su
                     if height > close then -- white gradient
-                        local c = math.max(50,math.floor(255*(1-(height-close)/(20*su))))
+                        local c = max(50,floor(255*(1-(height-close)/(20*su))))
                         class = string.format([[style="color:rgb(%d, %d, %d);"]], c,c,c)
                     end
                     local d = height < (10*su) and 2 or 1
@@ -469,13 +557,11 @@ function    requireSafeTravelInfos()
                 minDistance2 = distance2
             end
         end
-        return body, math.sqrt(minDistance2)
+        return body, sqrt(minDistance2)
     end
     function    sti:getSvgSafeZoneStatus(shipPos, screenPos)
         screenPos = screenPos or vec3(10, 10, 0)
-        --safe zone
-        local safeZone = vec3(13771471, 7435803, -128971) -- center of safe zone (a sphere), from Archaegeo
-        local safefrontierDist = 18000000 - (shipPos - safeZone):len() -- 90su
+        local safefrontierDist = self.safeZone.r - (shipPos - self.safeZone.center):len()
         --planetary protection
         local closestBody, closestBodyDist = sti:getClosestBody(shipPos)
         local bodyFrontierDist = 500000 - closestBodyDist -- 2.5su
@@ -502,23 +588,25 @@ function    requireSafeTravelInfos()
             </g>]],
             self.color, fs,
             textpos.x, textpos.y,
-            textpos.x, textpos.y+fs*1+pad*2, fancy_sukm(math.abs(safefrontierDist)),
-            textpos.x, textpos.y+fs*2+pad*1, fancy_sukm(math.abs(bodyFrontierDist)), closestBody.name)
+            textpos.x, textpos.y+fs*1+pad*2, fancy_sukm(abs(safefrontierDist)),
+            textpos.x, textpos.y+fs*2+pad*1, fancy_sukm(abs(bodyFrontierDist)), closestBody.name)
             return svgcode
     end
 
-    function    sti:getSvgcode()
+    function    sti:getSvgcode(shipPos)
+        self.shipPos = shipPos or vec3(core.getConstructWorldPos())
         local svgcode = ""
         --first panel
-        local ypos = math.floor(g.h*0.70)
-        svgcode = svgcode .. self:getSvgDangerZones(ypos)
-        local svgtmp, x1, x2 = self:getSvgPlanetZones(ypos)
-        svgcode = svgcode .. svgtmp
+        local ypos = floor(g.h*0.70)
+        local x1 = 250
+        local x2 = g.w - x1
+        svgcode = svgcode .. self:getSvgPlanetZones(ypos, x1, x2)
+        svgcode = svgcode .. self:getSvgDangerZones(ypos, x1, x2)
         svgcode = svgcode .. self:getSvgShipHeight(ypos, x1, x2)
         svgcode = svgcode .. self:getSvgBti(vec3(30, 60, 0))
-        self:updateMatriceHeights()
+        self:updateMatriceHeights(self.shipPos)
         svgcode = svgcode .. self:getSvgMatrice()
-        svgcode = svgcode .. self:getSvgSafeZoneStatus(vec3(core.getConstructWorldPos()), vec3(1580,15,0))
+        svgcode = svgcode .. self:getSvgSafeZoneStatus(self.shipPos, vec3(1580,15,0))
         return svgcode
     end
     function    sti:getLateSvgcode()
@@ -537,15 +625,27 @@ end
 function    requirePlanetSelector()
     local ps = {}
     ps.color = "darkgray"
-    ps.y = math.floor(g.h*0.4)
+    ps.y = floor(g.h*0.4)
     ps.fontsize = 45
     ps.indent = 10
     
+    --planets
     ps.buttons = {}
     ps.planetSelectionOrigin = ButtonGroup()
     ps.planetSelectionDestination = ButtonGroup()
     ps._destinationIndexMap = {}
     ps._originIndexMap = {}
+
+    --simulation
+    ps.simulation = {
+        running = false,
+        repeating = false,
+        automaticSpeed = false,
+        deltaTime = 0.05,
+        duration = 5, --sec if automaticSpeed, adapted depending on travel dist)
+        shipSpeed = 1*su, -- / sec
+        shipTrajectory = vec3(core.getConstructWorldOrientationForward()):normalize(),
+    }
 
     function    ps:initPlanets(planets)
         local size = {width=175,height=50}
@@ -570,14 +670,12 @@ function    requirePlanetSelector()
             self._destinationIndexMap[v.name] = i
         end
     end
-
     function    ps:update(cursorPos)
         local changes = Button.updateButtonsStates(self.buttons, cursorPos)
         if changes then
             g.needRefresh = true
         end
     end
-
     function    ps:getSvgcode()
         local svgcode = ""
         svgcode = svgcode .. string.format([[
@@ -596,7 +694,6 @@ function    requirePlanetSelector()
         end
         return svgcode
     end
-
     function    ps:getLateSvgcode()
         local svgcode = ""
         for i, v in ipairs(self.buttons) do
@@ -604,9 +701,29 @@ function    requirePlanetSelector()
         end
         return svgcode
     end
-
     function    ps:tryClick(x, y)
         Button.tryClickOnButtons(self.buttons, {x=x, y=y})
+    end
+
+    function    ps:prepareSimulation()
+        self.simulation.shipTrajectory = vec3(core.getConstructWorldOrientationForward()):normalize()
+        if self.simulation.automaticSpeed then
+            local travelDist = (sti.bti.waypoints[sti.destination] - sti.shipPos):len()
+            self.simulation.shipSpeed = travelDist / self.simulation.duration
+        end
+    end
+    function    ps:toggleSimulation(forcedState)
+        self.simulation.running = (forcedState ~= nil) and forcedState or (not self.simulation.running)
+        if self.simulation.running then
+            self:prepareSimulation()
+            unit.setTimer("simulation", self.simulation.deltaTime)
+        else
+            unit.stopTimer("simulation")
+            g.needRefresh = true
+        end
+    end
+    function    ps:runSimulationStep()
+        sti.shipPos = sti.shipPos + self.simulation.shipTrajectory * self.simulation.shipSpeed * self.simulation.deltaTime
     end
 
     return ps
@@ -638,4 +755,7 @@ function    selectDestination()
     else -- unselected the current selection, just reselect it (always 1 selected)
         selector.planetSelectionDestination[sti.destination]:_click()
     end
+end
+function    toggleSimulation()
+    selector:toggleSimulation()
 end
