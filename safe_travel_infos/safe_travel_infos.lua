@@ -1,5 +1,5 @@
 --[[
-    Safe Travel Infos v1.8
+    Safe Travel Infos v1.9
 
     links order:
         1. core
@@ -138,7 +138,7 @@ function    requireSafeTravelInfos()
         center = vec3(13771471, 7435803, -128971), -- from Archaegeo
         r = 18000000, -- 90su
     }
-    sti.shipPos = vec3(core.getConstructWorldPos())
+    sti.shipPos = vec3(construct.getWorldPosition())
 
     function    sti:setTextColor(color)
         if type(color) == "string" then
@@ -488,7 +488,6 @@ function    requireSafeTravelInfos()
         local pad = 0
         local s = 32
         self.grid.rect = Rect(screenPos.x, screenPos.y, (s+pad)*count, (s+pad)*count)
-
         for j = 1, count do
             self.grid.buttonsGrid[j] = {}
             for i = j+1, count do
@@ -551,7 +550,7 @@ function    requireSafeTravelInfos()
         return svgcode
     end
     function    sti:updateGridHeights(shipPos)
-        shipPos = shipPos or vec3(core.getConstructWorldPos())
+        shipPos = shipPos or vec3(construct.getWorldPosition())
         self.grid.heights = sti.getHeightsFor(shipPos, self.bti.waypoints)
         local bodyCount = #self.bti.waypoints
         for j = 1, bodyCount do
@@ -677,13 +676,19 @@ function    requireSafeTravelInfos()
     end
 
     function    sti:getSvgcode(shipPos)
-        self.shipPos = shipPos or vec3(core.getConstructWorldPos())
+        self.shipPos = shipPos or vec3(construct.getWorldPosition())
         local svgcode = ""
         -- first panel
         local ypos = floor(g.h*0.70)
         local x1 = 250
         local x2 = g.w - x1
-        self:calculateKinematics(x1, x2, self.shipPos, core.getWorldAbsoluteVelocity(), core.getConstructWorldForward())
+        self:calculateKinematics(
+            x1,
+            x2,
+            self.shipPos,
+            construct.getWorldAbsoluteVelocity(),
+            construct.getWorldForward()
+        )
         svgcode = svgcode .. self:getSvgPlanetZones(ypos, x1, x2) -- planets BG images
         svgcode = svgcode .. self:getSvgDangerZones(ypos, x1, x2) -- colored danger zones in BG
         if self.displayMoreTrajectorys then
@@ -734,7 +739,7 @@ function    requirePlanetSelector()
         deltaTime = 1/20, -- 1/Xfps
         duration = 5, --sec
         shipSpeed = 10*su, -- / sec, if automaticSpeed, adapted depending on travel dist
-        shipTrajectory = vec3(core.getConstructWorldOrientationForward()):normalize(),
+        shipTrajectory = vec3(construct.getWorldOrientationForward()):normalize(),
     }
     ps.simulation.toggleButton = Button("Run simulation", ps.simulation.textPos + vec3(0,-ps.simulation.fontsize,0), {width=310,height=44}, 35)
     ps.simulation.toggleButton.canToggle = true
@@ -853,7 +858,7 @@ function    requirePlanetSelector()
         --stop or repeat simu if duration expires
         if system.getTime() - self.simulation.startedAt > self.simulation.duration then
             if self.simulation.repeating then
-                sti.shipPos = vec3(core.getConstructWorldPos())
+                sti.shipPos = vec3(construct.getWorldPosition())
                 self.simulation.startedAt = system.getTime()
             else
                 self.simulation.toggleButton:_click()

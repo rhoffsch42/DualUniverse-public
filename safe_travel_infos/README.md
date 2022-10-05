@@ -7,6 +7,8 @@ A visual representation of your ship distance from the warp tunnel between two p
 3) link a screen
 4) optionnal: link another screen to display more data
 
+Also make sure that HTML screen units are not disabled (Escape > General > "Disable HTML screen units").
+
 # Presentation
 You can select the origin planet on left and the destination planet on right, to know the ship's closest distance to the warp tunnel.
 
